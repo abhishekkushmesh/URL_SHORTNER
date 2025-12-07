@@ -28,21 +28,38 @@ app.use("/url", restrictTo(["NORMAL"]), urlRoute);
 app.use("/user", userRoute);
 app.use("/", staticRoute);
 
+
+
 app.get("/url/:shortId", async (req, res) => {
-  const shortId = req.params.shortId;
-  const entry = await URL.findOneAndUpdate(
-    {
-      shortId,
-    },
-    {
-      $push: {
-        visitHistory: {
-          timestamp: Date.now(),
+  try {
+    const shortId = req.params.shortId;
+    console.log("📍 Redirect request for shortId:", shortId);
+
+    const entry = await URL.findOneAndUpdate(
+      { shortId },
+      {
+        $push: {
+          visitHistory: {
+            timestamp: Date.now(),
+          },
         },
       },
-    }
-  );
-  res.redirect(entry.redirectURL);
-});
+      { new: true } // ← ADD THIS! Returns updated document
+    );
 
+    if (!entry) {
+      console.warn("❌ Short ID not found:", shortId);
+      return res.status(404).send("Short URL not found");
+    }
+
+    console.log("✅ Click recorded!");
+    console.log("   Total clicks now:", entry.visitHistory.length);
+    console.log("   Redirecting to:", entry.redirectURL);
+
+    return res.redirect(entry.redirectURL);
+  } catch (err) {
+    console.error("❌ Error during redirect:", err.message);
+    return res.status(500).send("Internal Server Error");
+  }
+});
 app.listen(PORT, () => console.log(`Server Started at PORT:${PORT}`));

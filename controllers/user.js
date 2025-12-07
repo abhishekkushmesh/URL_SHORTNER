@@ -1,13 +1,22 @@
 const User = require("../models/user");
 const { setUser } = require("../service/auth");
+const bcrypt = require("bcrypt"); // if you used bcryptjs, require("bcryptjs")
+
+const SALT_ROUNDS = 10;
 
 async function handleUserSignup(req, res) {
   const { name, email, password } = req.body;
+  const trimmedEmail = (email || "").trim();
+
+  // Hash password before saving
+  const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
   await User.create({
     name,
-    email,
-    password,
+    email: trimmedEmail,
+    password: hashedPassword,
   });
+
   return res.redirect("/");
 }
 
@@ -19,20 +28,23 @@ async function handleUserLogin(req, res) {
 
   console.log("Login attempt for:", trimmedEmail, "Found user:", !!user);
 
-  if (!user || user.password !== password) {
-    return res.render("login", {
-      error: "Invalid Username or Password",
-    });
+  // If user not found or password doesn't match -> show error
+  if (!user) {
+    return res.render("login", { error: "Invalid Username or Password" });
+  }
+
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) {
+    return res.render("login", { error: "Invalid Username or Password" });
   }
 
   const token = setUser(user);
   console.log("Created token length:", token?.length || 0);
 
-  // Set cookie with sensible options
   res.cookie("token", token, {
     httpOnly: true,
     sameSite: "lax",
-    maxAge: 1000 * 60 * 60 * 24, // 1 day
+    maxAge: 1000 * 60 * 60 * 24,
     path: "/",
   });
 
