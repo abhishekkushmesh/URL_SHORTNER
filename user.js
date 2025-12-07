@@ -1,9 +1,47 @@
-const express = require("express");
-const { handleUserSignup, handleUserLogin } = require("../controllers/user");
+const User = require("../models/user");
+const { setUser } = require("../service/auth");
 
-const router = express.Router();
+async function handleUserSignup(req, res) {
+  const { name, email, password } = req.body;
+  await User.create({
+    name,
+    email,
+    password,
+  });
+  return res.redirect("/");
+}
 
-router.post("/", handleUserSignup);
-router.post("/login", handleUserLogin);
+async function handleUserLogin(req, res) {
+  const { email, password } = req.body;
+  const trimmedEmail = (email || "").trim();
 
-module.exports = router;
+  const user = await User.findOne({ email: trimmedEmail });
+
+  console.log("Login attempt for:", trimmedEmail, "Found user:", !!user);
+
+  if (!user || user.password !== password) {
+    return res.render("login", {
+      error: "Invalid Username or Password",
+    });
+  }
+
+  const token = setUser(user);
+  console.log("Created token length:", token?.length || 0);
+
+  // Set cookie with sensible options
+  res.cookie("token", token, {
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: 1000 * 60 * 60 * 24, // 1 day
+    path: "/",
+  });
+
+  console.log("Cookie set on response (server-side).");
+
+  return res.redirect("/");
+}
+
+module.exports = {
+  handleUserSignup,
+  handleUserLogin,
+};
